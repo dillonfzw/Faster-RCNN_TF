@@ -22,6 +22,7 @@ from an_eval import v_eval
 from fast_rcnn.config import cfg
 import pdb
 import shutil
+import random
 
 class an_imdb(imdb):
     """
@@ -85,6 +86,10 @@ class an_imdb(imdb):
                 'Path does not exist: {}'.format(image_set_file)
         with open(image_set_file) as f:
             image_index = [x.strip() for x in f.readlines()]
+
+        # shuffle the images always helps
+        random.shuffle(image_index)
+        print("Shuffle image set {}".format(self._image_set))
         return image_index
 
     def _get_default_path(self):
@@ -107,8 +112,18 @@ class an_imdb(imdb):
             print '{} gt roidb loaded from {}'.format(self.name, cache_file)
             return roidb
         """
+
         gt_roidb = [self._load_pascal_annotation(index)
                     for index in self.image_index]
+
+        # exclude samples which does not have valid annotation
+        valid_idx = list(filter(lambda i: gt_roidb[i] is not None, range(self.image_index)))
+        gt_roidb = [gt_roidb[_] for _ in valid_idx]
+        image_idx = [self.image_index[_] for _ in valid_idx]
+        self._image_index = image_idx
+        print('Exclude {} samples which does not have valid annotations'.format(
+            len(self.image_index) - len(valid_idx)))
+
         """
         with open(cache_file, 'wb') as fid:
             cPickle.dump(gt_roidb, fid, cPickle.HIGHEST_PROTOCOL)
@@ -192,6 +207,16 @@ class an_imdb(imdb):
         filename = os.path.join(self._data_path, 'Annotations', index + '.xml')
         tree = ET.parse(filename)
         objs = tree.findall('object')
+
+        if True:
+            # Exclude the samples which have unknown labels based the desired label list
+            valid_cls_objs = [
+                obj for obj in objs if obj.find('name').text.lower().strip() in self._class_to_ind ]
+            if len(valid_cls_objs) != len(objs):
+                print 'Removed {} objects which has unknown labels'.format(
+                    len(objs) - len(valid_cls_objs))
+            objs = valid_cls_objs
+
         if not self.config['use_diff']:
             # Exclude the samples labeled as difficult
             non_diff_objs = [
@@ -200,7 +225,11 @@ class an_imdb(imdb):
             #     print 'Removed {} difficult objects'.format(
             #         len(objs) - len(non_diff_objs))
             objs = non_diff_objs
+
         num_objs = len(objs)
+        if num_objs < 1:
+            print('Sample {} does not have valid annotation and will be ingored'.format(filename))
+            return None
 
         boxes = np.zeros((num_objs, 4), dtype=np.uint16)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
