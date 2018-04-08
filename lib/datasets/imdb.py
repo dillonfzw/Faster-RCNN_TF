@@ -45,6 +45,10 @@ class imdb(object):
     def image_index(self):
         return self._image_index
 
+    @image_index.setter
+    def image_index(self, value):
+        self._image_index = value
+
     @property
     def roidb_handler(self):
         return self._roidb_handler
@@ -102,6 +106,9 @@ class imdb(object):
               for i in xrange(self.num_images)]
 
     def append_flipped_images(self):
+        # calculate/update roidb first because it will modify image_index and its associated properties
+        _ = self.roidb
+
         num_images = self.num_images
         widths = self._get_widths()
         for i in xrange(num_images):

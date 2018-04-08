@@ -26,16 +26,16 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
     parser.add_argument('--job_name', dest='job_name',
-                        help='One of "ps", "worker"',required=True,type=str)
+                        help='One of "ps", "worker"',required=False,type=str)
     parser.add_argument('--ps_hosts', dest='ps_hosts',
                         help='Comma-separated list of hostname:port for the parameter server jobs',default=None,type=str)
     parser.add_argument('--worker_hosts', dest='worker_hosts',
-                        help='Comma-separated list of hostname:port for the worker jobs',required=True,type=str)
+                        help='Comma-separated list of hostname:port for the worker jobs',required=False,type=str)
     parser.add_argument('--task_id', dest='task_id',
-                        help='Task ID of the worker/replica running the training',required=True,type=int)
+                        help='Task ID of the worker/replica running the training',required=False,default=0,type=int)
 
     parser.add_argument('--train_dir', dest='train_dir',
-                        help='Directory where to write event logs and checkpoint',required=True,type=str)
+                        help='Directory where to write event logs and checkpoint',required=False,default='train',type=str)
     parser.add_argument('--iters', dest='max_iters',
                         help='number of iterations to train',
                         default=None, type=int)
@@ -331,6 +331,39 @@ def filter_roidb(roidb):
                                                        num, num_after)
     return filtered_roidb
 
+'''
+setup TensorFlow distribute environment
+NOTE: we only do this if there are more than 1 workers had been requested
+'''
+def setup_distribute(TF_FLAGS):
+    worker_hosts = []
+    ps_hosts = []
+    spec = {}
+    if TF_FLAGS.worker_hosts is not None:
+        worker_hosts = TF_FLAGS.worker_hosts.split(',')
+        spec.update({'worker': worker_hosts})
+
+    if TF_FLAGS.ps_hosts is not None:
+        ps_hosts = TF_FLAGS.ps_hosts.split(',')
+        spec.update({'ps': ps_hosts})
+
+    if len(worker_hosts) > 0:
+        print('Cluster spec: ', spec)
+        cluster = tf.train.ClusterSpec(spec)
+
+        # Create and start a server for the local task.
+        server = tf.train.Server(cluster, job_name=TF_FLAGS.job_name, task_index=TF_FLAGS.task_id)
+        if TF_FLAGS.job_name == "ps":
+            server.join()
+    else:
+        cluster = None
+        server = tf.train.Server.create_local_server()
+        # enforce a task_id for single node mode
+        TF_FLAGS.task_id = 0
+
+    return cluster, server
+
+
 if __name__ == '__main__':
     args = parse_args()
 
@@ -370,22 +403,8 @@ if __name__ == '__main__':
         trainSet = "trainval"
         testSet = "test"
 
-    worker_hosts = args.worker_hosts.split(',')
-    print 'worker_hosts:', worker_hosts
-    if args.ps_hosts is not None:
-        ps_hosts = args.ps_hosts.split(',')
-        print 'ps_hosts:', ps_hosts
-        cluster = tf.train.ClusterSpec({"ps": ps_hosts, "worker": worker_hosts})
-    else:
-        cluster = tf.train.ClusterSpec({"worker": worker_hosts})
-
-    server = tf.train.Server(
-        cluster,
-        job_name = args.job_name,
-        task_index=args.task_id)
-
-    if args.job_name == 'ps':
-        server.join()
+    # flexible for standalone or distribute run
+    cluster, server = setup_distribute(args)
 
     is_chief = (args.task_id == 0)
 

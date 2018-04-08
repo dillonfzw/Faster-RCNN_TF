@@ -117,12 +117,12 @@ class an_imdb(imdb):
                     for index in self.image_index]
 
         # exclude samples which does not have valid annotation
-        valid_idx = list(filter(lambda i: gt_roidb[i] is not None, range(self.image_index)))
-        gt_roidb = [gt_roidb[_] for _ in valid_idx]
-        image_idx = [self.image_index[_] for _ in valid_idx]
-        self._image_index = image_idx
+        valid_idx = list(filter(lambda i: gt_roidb[i] is not None, range(len(self.image_index))))
         print('Exclude {} samples which does not have valid annotations'.format(
             len(self.image_index) - len(valid_idx)))
+        gt_roidb = [gt_roidb[_] for _ in valid_idx]
+        image_idx = [self.image_index[_] for _ in valid_idx]
+        self.image_index = image_idx
 
         """
         with open(cache_file, 'wb') as fid:
@@ -228,7 +228,8 @@ class an_imdb(imdb):
 
         num_objs = len(objs)
         if num_objs < 1:
-            print('Sample {} does not have valid annotation and will be ingored'.format(filename))
+            print('Sample {} does not have valid annotation and will be ingored'.format(
+                index))
             return None
 
         boxes = np.zeros((num_objs, 4), dtype=np.uint16)
