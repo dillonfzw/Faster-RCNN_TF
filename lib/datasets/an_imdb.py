@@ -89,7 +89,7 @@ class an_imdb(imdb):
 
         # shuffle the images always helps
         random.shuffle(image_index)
-        print("Shuffle image set {}".format(self._image_set))
+        print("Shuffle image set {} which has {} samples".format(self._image_set, len(image_index)))
         return image_index
 
     def _get_default_path(self):
@@ -118,8 +118,8 @@ class an_imdb(imdb):
 
         # exclude samples which does not have valid annotation
         valid_idx = list(filter(lambda i: gt_roidb[i] is not None, range(len(self.image_index))))
-        print('Exclude {} samples which does not have valid annotations'.format(
-            len(self.image_index) - len(valid_idx)))
+        print('Exclude {} out of {} samples which does not have valid annotations'.format(
+            len(self.image_index) - len(valid_idx), len(self.image_index)))
         gt_roidb = [gt_roidb[_] for _ in valid_idx]
         image_idx = [self.image_index[_] for _ in valid_idx]
         self.image_index = image_idx
